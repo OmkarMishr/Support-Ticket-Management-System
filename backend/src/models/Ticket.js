@@ -35,7 +35,46 @@ const ticketSchema = new mongoose.Schema({
     default: Date.now
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  history: [{
+    status: {
+      type: String,
+      enum: ['open', 'in-progress', 'resolved']
+    },
+    assignedTo: {
+      type: mongoose.Schema.ObjectId,
+      ref: 'User'
+    },
+    notes: String,
+    updatedBy: {
+      type: mongoose.Schema.ObjectId,
+      ref: 'User'
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  user: {  // Who created the ticket
+    type: mongoose.Schema.ObjectId,
+    ref: 'User',
+    required: true
+  }
+}, { timestamps: true });
+
+// Auto-generate ticket number pre-save
+ticketSchema.pre('save', async function(next) {
+  if (!this.ticketNumber) {
+    const count = await mongoose.model('Counter').countDocuments();
+    this.ticketNumber = `HD-${String(count + 1).padStart(4, '0')}`;
+  }
+  if (this.history.length === 0) {
+    this.history.push({
+      status: this.status,
+      timestamp: new Date()
+    });
+  }
+  next();
 });
 
 // Index for fast queries

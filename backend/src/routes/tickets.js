@@ -83,6 +83,9 @@ router.post('/', async (req, res) => {
       description,
       priority: priority || 'medium'
     });
+    // Add to existing POST route (after creating ticket)
+    const user = await User.findById(req.user?.id || 'demo-user');
+    ticket.user = user._id;
 
     res.status(201).json({
       success: true,
@@ -102,6 +105,35 @@ router.post('/', async (req, res) => {
     });
   }
 });
+
+
+// Add PUT for status update
+router.put('/:id/status', async (req, res) => {
+  try {
+    const { status, assignedTo, notes } = req.body;
+    
+    const ticket = await Ticket.findById(req.params.id);
+    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+    
+    // Add to history
+    ticket.history.push({
+      status,
+      assignedTo,
+      notes,
+      updatedBy: req.user?.id,
+      timestamp: new Date()
+    });
+    
+    ticket.status = status;
+    ticket.assignedTo = assignedTo;
+    await ticket.save();
+    
+    res.json({ success: true, data: ticket });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error' });
+  }
+});
+
 
 // @desc    Update ticket
 // @route   PUT /api/tickets/:id
