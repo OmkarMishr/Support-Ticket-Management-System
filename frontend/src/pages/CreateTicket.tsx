@@ -98,7 +98,9 @@ export const CreateTicket = () => {
                   status: 'open' as const,
                   priority: formData.priority,
                   createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString()
+                  updatedAt: new Date().toISOString(),
+                  ticketNumber: 'TCKT-01',  
+                  history: [],
                 }}
               />
             </div>

@@ -1,41 +1,46 @@
 import axios from 'axios';
-import type { AxiosInstance, AxiosResponse } from 'axios';
-import type { Ticket, CreateTicketData } from '../types/ticket';  
 
-// Response types
-interface TicketsResponse {
-  data: Ticket[];
+const API_URL = 'http://localhost:5000/api';
+
+// Create ticket type (title, description, priority)
+export interface CreateTicketData {
+  title: string;
+  description: string;
+  priority: 'low' | 'medium' | 'high';
 }
 
-interface TicketResponse {
-  data: Ticket;
+// Update ticket type (status, notes, etc.)
+export interface UpdateTicketData {
+  status?: 'open' | 'in-progress' | 'resolved';
+  notes?: string;
+  priority?: 'low' | 'medium' | 'high';
+  assignedTo?: string;
 }
-
-const API_URL = 'http://localhost:5000/api'; // Backend URL
-
-export const api: AxiosInstance = axios.create({
-  baseURL: API_URL,
-  headers: { 'Content-Type': 'application/json' }
-});
-
-api.interceptors.response.use(
-  (response: AxiosResponse) => response,
-  (error) => {
-    console.error('API Error:', error.response?.data || error.message);
-    return Promise.reject(error);
-  }
-);
 
 export const ticketAPI = {
-  getAll: (): Promise<AxiosResponse<TicketsResponse>> => 
-    api.get<TicketsResponse>('/tickets'),
-  
-  create: (data: CreateTicketData): Promise<AxiosResponse<TicketResponse>> => 
-    api.post<TicketResponse>('/tickets', data),
-  
-  update: (id: string, data: Partial<CreateTicketData>): Promise<AxiosResponse<TicketResponse>> => 
-    api.put<TicketResponse>(`/tickets/${id}`, data),
-  
-  getById: (id: string): Promise<AxiosResponse<TicketResponse>> => 
-    api.get<TicketResponse>(`/tickets/${id}`)
+  create: async (data: CreateTicketData) => {
+    const response = await axios.post(`${API_URL}/tickets`, data);
+    return response.data;
+  },
+
+  // ✅ FIXED: Now accepts UpdateTicketData
+  update: async (id: string, data: Partial<UpdateTicketData>) => {
+    const response = await axios.put(`${API_URL}/tickets/${id}`, data);
+    return response.data;
+  },
+
+  getAll: async () => {
+    const response = await axios.get(`${API_URL}/tickets`);
+    return response.data.data || [];
+  },
+
+  getById: async (id: string) => {
+    const response = await axios.get(`${API_URL}/tickets/${id}`);
+    return response.data.data;
+  },
+
+  delete: async (id: string) => {
+    const response = await axios.delete(`${API_URL}/tickets/${id}`);
+    return response.data;
+  }
 };

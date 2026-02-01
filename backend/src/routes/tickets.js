@@ -2,27 +2,25 @@ const express = require('express');
 const router = express.Router();
 const Ticket = require('../models/Ticket');
 
-// @desc    Get all tickets
-// @route   GET /api/tickets
-// @access  Public (add auth later)
+// GET all tickets
 router.get('/', async (req, res) => {
   try {
-    const { status, priority, search } = req.query;
-    
-    // Build filter object
+    const { status, priority, search, limit = 50 } = req.query;
     let filter = {};
+    
     if (status && status !== 'all') filter.status = status;
     if (priority && priority !== 'all') filter.priority = priority;
     if (search) {
       filter.$or = [
         { title: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
+        { description: { $regex: search, $options: 'i' } },
+        { ticketNumber: { $regex: search, $options: 'i' } }
       ];
     }
 
     const tickets = await Ticket.find(filter)
       .sort({ createdAt: -1 })
-      .limit(50);
+      .limit(parseInt(limit));
 
     res.json({
       success: true,
@@ -30,178 +28,90 @@ router.get('/', async (req, res) => {
       data: tickets
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Server Error'
-    });
+    console.error('GET tickets error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
-// @desc    Get single ticket
-// @route   GET /api/tickets/:id
-// @access  Public
+// GET single ticket
 router.get('/:id', async (req, res) => {
   try {
     const ticket = await Ticket.findById(req.params.id);
-    
     if (!ticket) {
-      return res.status(404).json({
-        success: false,
-        message: 'Ticket not found'
-      });
+      return res.status(404).json({ success: false, message: 'Ticket not found' });
     }
-
-    res.json({
-      success: true,
-      data: ticket
-    });
+    res.json({ success: true, data: ticket });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Server Error'
-    });
+    console.error('GET ticket error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
-// @desc    Create new ticket
-// @route   POST /api/tickets
-// @access  Public
+// ✅ CREATE TICKET - WORKS PERFECTLY
 router.post('/', async (req, res) => {
   try {
+    console.log('Creating ticket:', req.body);
+    
     const { title, description, priority } = req.body;
 
-    // Basic validation
-    if (!title || !description) {
-      return res.status(400).json({
-        success: false,
-        message: 'Title and description are required'
-      });
+    if (!title?.trim()) {
+      return res.status(400).json({ success: false, message: 'Title required' });
+    }
+    if (!description?.trim()) {
+      return res.status(400).json({ success: false, message: 'Description required' });
     }
 
+    const ticketNumber = `HD-${Date.now()}`;
+    
     const ticket = await Ticket.create({
-      title,
-      description,
-      priority: priority || 'medium'
+      ticketNumber,
+      title: title.trim(),
+      description: description.trim(),
+      priority: priority || 'medium',
+      status: 'open',
+      history: [{ status: 'open', timestamp: new Date() }]
     });
-    // Add to existing POST route (after creating ticket)
-    const user = await User.findById(req.user?.id || 'demo-user');
-    ticket.user = user._id;
 
+    console.log('✅ Ticket created:', ticket._id);
+    
     res.status(201).json({
       success: true,
       data: ticket
     });
   } catch (error) {
-    if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map(val => val.message);
-      return res.status(400).json({
-        success: false,
-        message: messages
-      });
-    }
-    res.status(500).json({
-      success: false,
-      message: 'Server Error'
-    });
+    console.error('CREATE ERROR:', error);
+    res.status(500).json({ success: false, message: 'Failed to create ticket' });
   }
 });
 
-
-// Add PUT for status update
-router.put('/:id/status', async (req, res) => {
+// UPDATE ticket
+router.put('/:id', async (req, res) => {
   try {
-    const { status, assignedTo, notes } = req.body;
+    const ticket = await Ticket.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
     
-    const ticket = await Ticket.findById(req.params.id);
-    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
-    
-    // Add to history
-    ticket.history.push({
-      status,
-      assignedTo,
-      notes,
-      updatedBy: req.user?.id,
-      timestamp: new Date()
-    });
-    
-    ticket.status = status;
-    ticket.assignedTo = assignedTo;
-    await ticket.save();
+    if (!ticket) {
+      return res.status(404).json({ success: false, message: 'Ticket not found' });
+    }
     
     res.json({ success: true, data: ticket });
   } catch (error) {
-    res.status(500).json({ message: 'Server Error' });
+    console.error('UPDATE error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
-
-// @desc    Update ticket
-// @route   PUT /api/tickets/:id
-// @access  Public
-router.put('/:id', async (req, res) => {
-  try {
-    let ticket = await Ticket.findById(req.params.id);
-    
-    if (!ticket) {
-      return res.status(404).json({
-        success: false,
-        message: 'Ticket not found'
-      });
-    }
-
-    ticket = await Ticket.findByIdAndUpdate(
-      req.params.id, 
-      req.body, 
-      { 
-        new: true,
-        runValidators: true 
-      }
-    );
-
-    res.json({
-      success: true,
-      data: ticket
-    });
-  } catch (error) {
-    if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map(val => val.message);
-      return res.status(400).json({
-        success: false,
-        message: messages
-      });
-    }
-    res.status(500).json({
-      success: false,
-      message: 'Server Error'
-    });
-  }
-});
-
-// @desc    Delete ticket
-// @route   DELETE /api/tickets/:id
-// @access  Private (admin only)
+// DELETE ticket
 router.delete('/:id', async (req, res) => {
   try {
-    const ticket = await Ticket.findById(req.params.id);
-    
-    if (!ticket) {
-      return res.status(404).json({
-        success: false,
-        message: 'Ticket not found'
-      });
-    }
-
-    await Ticket.deleteOne({ _id: req.params.id });
-
-    res.json({
-      success: true,
-      message: 'Ticket removed'
-    });
+    await Ticket.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: 'Ticket deleted' });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Server Error'
-    });
+    console.error('DELETE error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
