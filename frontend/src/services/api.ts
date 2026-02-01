@@ -11,7 +11,7 @@ interface TicketResponse {
   data: Ticket;
 }
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'http://localhost:5000/api'; // Backend URL
 
 export const api: AxiosInstance = axios.create({
   baseURL: API_URL,
